@@ -2,7 +2,9 @@ class CopyManga extends ComicSource {
 
     name = "拷贝漫画M"
 
-    key = "copy_manga"
+    // ⚠️ 必须是唯一 key：原本与 copy_manga.js 共用 "copy_manga"，
+    // App 按 key 去重，装了本源会把标准版顶掉（反之亦然），两者无法共存。
+    key = "copy_manga_multi_accounts"
 
     version = "1.4.1"
 
