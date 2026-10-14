@@ -12,18 +12,19 @@
 class Mh4399 extends ComicSource {
     name = "4399漫画网"
     key = "mh4399"
-    version = "1.0.3"
+    version = "1.0.5"
     minAppVersion = "1.6.0"
     url = ""
 
     static baseUrl = "http://www.4399manhua.com"
     static userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
     static mobileUA = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1"
+    static formContentType = "application/x-www-form-urlencoded"
     static categoryTypes = ["霸总", "修真", "恋爱", "校园", "冒险", "搞笑", "生活", "热血", "架空", "后宫", "玄幻", "悬疑", "恐怖", "灵异", "动作", "科幻", "战争", "古风", "穿越", "竞技", "励志", "同人", "真人", "总裁", "异能", "剧情", "大女主", "都市", "格斗", "武侠", "日常", "纯爱", "推理", "少年", "奇幻", "短篇", "ABO", "运动", "萌系", "爆笑", "蔷薇", "百合", "BG", "爱情", "魔法", "历史", "宅系", "治愈", "职场", "欢乐向"]
     static regionMap = [["全部", "0"], ["大陆", "1"], ["日本", "2"], ["韩国", "3"], ["欧美", "4"]]
     static statusMap = [["全部", "0"], ["连载中", "1"], ["已完结", "2"]]
 
-    headers(ua, referer) {
+    headers(ua, referer, contentType) {
         const h = {
             "User-Agent": ua || Mh4399.userAgent,
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
@@ -34,6 +35,10 @@ class Mh4399 extends ComicSource {
         }
         if (referer) {
             h["Referer"] = referer
+        }
+        if (contentType) {
+            // 表单 POST(搜索)必须显式声明, 否则 4399 服务端不解析 body 返回空结果页.
+            h["Content-Type"] = contentType
         }
         return h
     }
@@ -228,10 +233,12 @@ class Mh4399 extends ComicSource {
 
     search = {
         load: async (keyword, options, page) => {
-            // 桌面UA的POST返回空结果页, 必须用移动UA
+            // 桌面UA的POST返回空结果页, 必须用移动UA;
+            // 表单 POST 必须带 Content-Type: application/x-www-form-urlencoded,
+            // 否则 4399 服务端不解析 body, 返回《》空结果页(见 v1.0.5 修复说明).
             const res = await Network.post(
                 `${Mh4399.baseUrl}/search2.html`,
-                this.headers(Mh4399.mobileUA),
+                this.headers(Mh4399.mobileUA, Mh4399.baseUrl + "/", Mh4399.formContentType),
                 "keywords=" + encodeURIComponent(keyword)
             )
             // 搜索403时退避重试
@@ -240,7 +247,7 @@ class Mh4399 extends ComicSource {
                     await new Promise((resolve) => setTimeout(resolve, 2000 * (i + 1)))
                     const retry = await Network.post(
                         `${Mh4399.baseUrl}/search2.html`,
-                        this.headers(Mh4399.mobileUA),
+                        this.headers(Mh4399.mobileUA, Mh4399.baseUrl + "/", Mh4399.formContentType),
                         "keywords=" + encodeURIComponent(keyword)
                     )
                     if (retry.status === 200) {
@@ -361,10 +368,12 @@ class Mh4399 extends ComicSource {
             }
         },
         // 封面缩略图请求配置: Venera 解析器接的是 comic.onThumbnailLoad
+        // 封面同样托管在 oub.acgdm001.com, 与页图一样只放行 iPhone 移动 UA;
+        // 用桌面 UA 会 403(WAF 页), 导致列表/详情封面全白.
         onThumbnailLoad: (imageKey) => {
             return {
                 headers: {
-                    "User-Agent": Mh4399.userAgent,
+                    "User-Agent": Mh4399.mobileUA,
                     "Referer": Mh4399.baseUrl + "/",
                     "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
                     "Accept-Language": "zh-CN,zh;q=0.9",
